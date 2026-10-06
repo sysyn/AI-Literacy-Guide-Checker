@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AI Literacy Guide Checker</title>
+<style>
+:root{box-sizing:border-box;--bg:#f7f6f2;--card:#fff;--ink:#1d2a2e;--mute:#5d6b70;--line:#d9dcd8;--accent:#1f5f6b;--on:#fff;--s0:#b9442f;--s1:#c9772b;--s2:#b59a28;--s3:#6f9a45;--s4:#3f8a5f;--s5:#1f5f6b}
+@media (prefers-color-scheme:dark){:root{--bg:#13191b;--card:#1b2427;--ink:#e6ecea;--mute:#98a7ab;--line:#2f3c40;--accent:#6fb7c4;--on:#0d1618}}
+*,*:before,*:after{box-sizing:inherit}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 Georgia,"Iowan Old Style",serif}
+main{max-width:760px;margin:0 auto;padding:32px 20px 64px}
+h1{font-size:1.9rem;line-height:1.2;margin:0 0 6px}
+h2{font-size:1.15rem;margin:0}
+.sub{color:var(--mute);margin:0 0 24px}
+label{display:block;font-weight:bold;margin:18px 0 6px;font-size:.95rem}
+input{width:100%;font:inherit;padding:10px 12px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink)}
+input:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button{font:inherit;font-weight:bold;background:var(--accent);color:var(--on);border:0;border-radius:6px;padding:11px 22px;margin-top:18px;cursor:pointer}
+button:disabled{opacity:.5;cursor:default}
+#status{margin-top:16px;color:var(--mute)}
+#status.err{color:var(--s0)}
+.box{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:18px 20px;margin-top:20px}
+.warn{border-color:var(--s1)}
+.comp{background:var(--card);border:1px solid var(--line);border-left-width:6px;border-radius:8px;padding:16px 20px;margin-top:16px}
+.head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+.score{font-size:1.5rem;font-weight:bold}
+.level,.small{color:var(--mute);font-size:.9rem}
+h3{margin:14px 0 4px;font-size:.95rem}
+p,ul{margin:0}ul{padding-left:20px}
+blockquote{margin:6px 0;padding-left:12px;border-left:3px solid var(--line);color:var(--mute);font-style:italic}
+.bar{display:flex;gap:4px;margin-top:6px}
+.bar span{height:6px;flex:1;border-radius:3px;background:var(--line)}
+</style>
+</head>
+<body>
+<main>
+<h1>AI Literacy Guide Checker</h1>
+<p class="sub">Paste the link to an AI literacy guide to see how it scores on four competencies, and what is missing.</p>
+<label for="url">Guide URL</label>
+<input id="url" type="url" placeholder="https://library.example.edu/ai-literacy" autocomplete="off">
+<button id="go">Review this guide</button>
+<div id="status" role="status" aria-live="polite"></div>
+<div id="out"></div>
+</main>
+<script>
+const COLORS=["--s0","--s1","--s2","--s3","--s4","--s5"];
+const LABELS=["No information","Barely mentioned","Basic, broad","Discussed","Clear guidance","Thorough coverage"];
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const list=a=>(a&&a.length)?"<ul>"+a.map(x=>"<li>"+esc(x)+"</li>").join("")+"</ul>":"<p>None noted.</p>";
+
+function render(r,pages){
+  let h="";
+  if(r.is_ai_literacy_guide===false)h+=`<div class="box warn"><strong>This may not be an AI literacy guide.</strong><p>${esc(r.guide_type_note)}</p></div>`;
+  h+=`<div class="box"><h2>Overall feedback</h2><p>${esc(r.overall_summary)}</p><h3>Priorities for revision</h3>${list(r.top_priorities)}
+  <h3>Pages reviewed (${pages.length})</h3><p class="small">${pages.map(p=>esc(p.title)).join("; ")}</p>
+  <p class="small">Scores reflect only the text the tool could read. Content in videos, images or pages behind a login is not seen.</p></div>`;
+  for(const c of r.competencies){
+    const s=Math.max(0,Math.min(5,Math.round(c.score)));
+    h+=`<section class="comp" style="border-left-color:var(${COLORS[s]})">
+    <div class="head"><h2>${esc(c.name)}</h2><div><span class="score">${s}/5</span> <span class="level">${LABELS[s]}</span></div></div>
+    <div class="bar">${[1,2,3,4,5].map(i=>`<span style="${i<=s?"background:var("+COLORS[s]+")":""}"></span>`).join("")}</div>
+    <h3>Why this score</h3><p>${esc(c.rationale)}</p>
+    <h3>Evidence from the guide</h3>${(c.evidence||[]).length?c.evidence.map(e=>`<blockquote>${esc(e)}</blockquote>`).join(""):"<p>No supporting passages found.</p>"}
+    <h3>What is lacking</h3>${list(c.gaps)}
+    <h3>${s>=5?"To keep this strong":"To reach "+(s+1)}</h3>${list(c.next_steps)}</section>`;
+  }
+  $("out").innerHTML=h;
+}
+
+$("go").onclick=async()=>{
+  const url=$("url").value.trim(),st=$("status");
+  st.className="";
+  if(!/^https?:\/\//i.test(url)){st.className="err";st.textContent="Enter a full link that starts with http:// or https://";return}
+  $("go").disabled=true;$("out").innerHTML="";st.textContent="Reading the guide and its pages, then scoring. This takes about a minute.";
+  try{
+    const res=await fetch("/api/check",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({url})});
+    const raw=await res.text();let d;
+    try{d=JSON.parse(raw)}catch{throw new Error(`The app server sent back a web page instead of data (status ${res.status}). Open the app at http://localhost:3000 after running "npm start", not the HTML file directly. If it is hosted online, the review may be taking longer than the host allows.`)}
+    if(!res.ok)throw new Error(d.error);
+    render(d.result,d.pages);st.textContent="";
+  }catch(e){st.className="err";st.textContent=e.message||"The review failed. Check the link and try again."}
+  $("go").disabled=false;
+};
+$("url").addEventListener("keydown",e=>{if(e.key==="Enter")$("go").click()});
+</script>
+</body>
+</html>
