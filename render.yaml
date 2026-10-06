@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: ai-literacy-guide-checker
+    runtime: node
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: ACCESS_CODE
+        sync: false

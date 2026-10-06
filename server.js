@@ -73,6 +73,8 @@ async function readPage(u) {
 
 app.post("/api/check", async (req, res) => {
   try {
+    if (process.env.ACCESS_CODE && req.body.code !== process.env.ACCESS_CODE)
+      return res.status(401).json({ error: "Enter the access code to use this tool." });
     const first = await readPage(String(req.body.url || "").trim());
     const pages = [first];
     const rest = await Promise.allSettled(first.links.slice(0, MAX_PAGES - 1).map(readPage));
